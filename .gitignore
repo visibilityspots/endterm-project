@@ -1,0 +1,13 @@
+Backup/
+Screencasts/
+*.iso
+*.aux
+*.log
+*.aut
+*.toc
+*.dvi
+*.nav
+*.snm
+*.vrb
+*.out
+*~

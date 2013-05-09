@@ -1,0 +1,931 @@
+\documentclass[11pt,a4paper]{report}
+
+\usepackage[setspace]{}
+\usepackage[dutch]{babel}
+\usepackage{graphics} 
+\usepackage[pdftex,bookmarks=true]{hyperref}
+\usepackage[nottoc]{tocbibind} 
+\usepackage{fancyhdr}\usepackage[titles]{tocloft}
+\usepackage{listings}
+\usepackage[usenames,dvipsnames]{color}
+
+\renewcommand{\familydefault}{\sfdefault}
+
+\hypersetup
+{
+    pdfauthor={Jorn Jambers, Wout Decr\'{e} \& Jan Collijs},
+    pdfsubject={Puppet},
+    pdftitle={Projectwerk - Documentatie},
+}
+
+\begin{document}
+\input{./layout/layout.tex}
+
+\input{./layout/titlepage.tex}
+
+\thispagestyle{empty}
+\addcontentsline{toc}{chapter}{Inhoudsopgave}
+
+\tableofcontents
+\thispagestyle{empty}
+
+\newpage
+
+\chapter*{Inleiding} \addcontentsline{toc}{chapter}{Inleiding}
+Deze howto werd opgesteld in het kader van het projectwerk aan de Katholieke Hogeschool Leuven in de richting Toegepaste Informatica.
+
+Aan de hand van dit document zou je in staat moeten zijn om op zelfstandige basis een netwerk van enkele servers op te zetten. Deze opstelling kan dan op een geautomatiseerde manier worden beheerd met behulp van het open source pakket puppet\footnote{\url{http://reductivelabs.com/products/puppet/}}. 
+
+Door het schrijven van enkele scripts hebben we getracht om de kracht van dit pakket op een gebruiksvriendelijke manier te benaderen.
+
+Wij wensen u alvast veel leergenot toe met het volgen van onze opstelling.
+
+Succes.
+
+\chapter*{Virtualisatie} \addcontentsline{toc}{chapter}{Virtualisatie}
+Om het testen van de verschillende onderdelen makkelijker te maken hebben we gebruik gemaakt van virtuele machines. Na heel wat geklungel met qemu hebben we besloten om het over een andere boeg te gooien en met virtualbox in zee te gaan.
+
+Meer informatie vind je terug op de \href{http://www.virtualbox.org/}{website}.
+
+\section*{Virtualbox} \addcontentsline{toc}{section}{Virtualbox}
+
+VirtualBox onder Ubuntu installeren
+\begin{lstlisting}[language=clean]
+# sudo apt-get install virtualbox-ose
+\end{lstlisting}
+
+Om een virtuele Ubuntu machine te kunnen booten in VirtualBox, moet je PAE/NX enablen onder General - Advanced in de settings van de specifieke ubuntu image onder VirtualBox.
+
+Je kan de netwerkkaart van je virtuele machine binden op je host interface, zodat je in hetzelfde netwerk zit als je host computer.
+
+\section*{Qemu} \addcontentsline{toc}{section}{Qemu}
+Wij raden het gebruik van qemu af wegens de vele problemen met betrekking tot virtualisatie van het netwerkgebeuren en de snelheid, gebruiksgemak. 
+
+Echter voor diegene die het toch wil proberen hier de opstelling die wij gebruikten om met qemu te kunnen werken.
+
+Om Qemu onder Ubuntu te installeren:
+\begin{lstlisting}[language=clean]
+# sudo apt-get install qemu
+\end{lstlisting}
+
+Puppet master:
+\begin{lstlisting}[language=clean]
+# qemu-img create -f qcow2 master.qcow2 10G
+# qemu -hda master.qcow2 -boot d -cdrom /dev/scd0 &
+# qemu -hda master.qcow2 -net nic,macaddr=52:54:00:12:36:01 -net socket,listen=:1234 &
+\end{lstlisting}
+
+Puppet slave:
+\begin{lstlisting}[language=clean]
+# qemu-img create -f qcow2 slave.qcow2 10G
+# qemu -hda slave.qcow2 -boot d -cdrom /dev/scd0 &
+# qemu -hda slave.qcow2 -net nic,macaddr=52:54:00:12:36:02 -net socket,connect=:1234 &
+\end{lstlisting}
+
+Op die manier worden er twee virtuele systemen aangemaakt en opgestart welke met elkaar in verbinding komen te staan. Later in deze howto wordt duidelijk hoe deze dienen te worden geconfigureerd.
+
+\chapter*{Kickstart} \addcontentsline{toc}{chapter}{Kickstart}
+In dit hoofdstuk leggen we uit hoe je zelf een kickstart cdrom kan aanmaken aan de hand van onze configuratie om het installeren van een server binnen de opstelling nog sneller te laten verlopen.
+
+\section*{Download} \addcontentsline{toc}{section}{Download}
+Je hebt geen aparte software nodig om Kickstart te gebruiken, kickstart werd reeds standaard meegeleverd met Ubuntu. Je moet dus enkel Ubuntu's server editie \href{http://ftp.belnet.be/mirror/ubuntu.com/releases/hardy/ubuntu-8.04.2-server-i386.iso}{downloaden}.
+
+Om het ISO bestand te wijzigen, gebruiken we ISO Master.
+\begin{lstlisting}[language=clean]
+# sudo apt-get install isomaster
+\end{lstlisting}
+
+Een handige tool om een eerste keer een Kickstart configuratie te maken is Kickstart Configurator.
+\begin{lstlisting}[language=clean]
+# sudo apt-get install system-config-kickstart
+\end{lstlisting}
+
+In deze howto gebruiken we de bestanden ksmaster.cfg en ksslave.cfg, deze zijn gemaakt m.b.v. Kickstart Configurator. 
+
+\section*{Configuratie} \addcontentsline{toc}{section}{Configuratie}
+In dit deel leggen we uit hoe je de eigenlijke iso image aanmaakt voor het installeren van een ubuntu server waarbij enkel de benodigde gegevens voor de puppet configuratie dienen ingegeven te worden
+
+Met ISO Master open je de \href{http://ftp.belnet.be/mirror/ubuntu.com/releases/hardy/ubuntu-8.04.2-server-i386.iso} ubuntu.iso image.
+
+\begin{nota}
+	In ISO Master, ga naar Tools - Options, en vul bij Editor gedit of een tekstverwerker naar keuze in.
+\end{nota}
+
+Vervolgens ga je naar de map isolinux (van de ubuntu iso), en kiest om het bestand isolinux.cfg te wijzigen (F4)
+
+Vervang:
+\begin{lstlisting}[language=clean]
+LABEL install
+  menu label ^Install Ubuntu Server (+ Puppet)
+  kernel /install/vmlinuz
+  append  ks=cdrom:/ks.cfg fb=false file=/cdrom/preseed/ubuntu-server.seed initrd=/install/initrd.gz quiet --
+\end{lstlisting}
+
+Door onderstaande labels (best te kopieren vanop de \href{https://wikis.khleuven.be/sysnw/index.php/Puppet#Configuratie}{wiki}:
+\begin{lstlisting}[language=clean]
+LABEL installslave
+  menu label ^Install Ubuntu Server as Puppet slave
+  kernel /install/vmlinuz
+  append  ks=cdrom:/ksslave.cfg fb=false file=/cdrom/preseed/ubuntu-server.seed initrd=/install/initrd.gz quiet --
+LABEL installmaster
+  menu label ^Install Ubuntu Server as Puppet master
+  kernel /install/vmlinuz
+  append  ks=cdrom:/ksmaster.cfg fb=false file=/cdrom/preseed/ubuntu-server.seed initrd=/install/initrd.gz quiet --
+\end{lstlisting}
+
+Met behulp van dit bestand kunnen we het root menu van de boot cdrom aanpassen. Zo geven we een label mee voor de puppetmaster en een label voor de puppetslave. Op die manier kan er met behulp van 1 cdrom gekozen worden voor de installatie van een puppetmaster of van een puppetslave.
+
+Kies Go back, zodat je terug in de root (/) map bent.
+
+\begin{nota}
+Volgende bestanden kopie\"{e}r je best vanop de \href{https://wikis.khleuven.be/sysnw/index.php/Puppet#Configuratie}{wiki}
+\end{nota}
+Met je favoriete editor maak je een nieuw bestand en noemt het ksmaster.cfg:
+
+\begin{lstlisting}[language=clean]
+#Generated by Kickstart Configurator
+#platform=x86
+#System language
+lang en_US
+#Language modules to install
+langsupport en_US
+#System keyboard
+keyboard be
+#System mouse
+mouse
+#System timezone
+timezone Europe/Brussels
+#Root password (= $$32Puppet)
+rootpw --iscrypted $1$HUUqY2cv$EDqnPg0QxtPBIM9d22ynC/
+#Initial user
+user --disabled
+#Reboot after installation
+reboot
+#Use text mode install
+text
+#Install OS instead of upgrade
+install
+#Use CDROM installation media
+cdrom
+#System bootloader configuration
+bootloader --location=mbr 
+#Clear the Master Boot Record
+zerombr yes
+#Partition clearing information
+clearpart --all --initlabel 
+#Disk partitioning information 
+part / --fstype ext3 --size 1 --grow 
+part swap --size 1024 
+#System authorization infomation
+auth  --useshadow  --enablemd5 
+#Network information
+network --bootproto=dhcp --device=eth0
+#Firewall configuration
+firewall --disabled 
+#Do not configure the X Window System
+skipx
+%packages
+openssh-server
+dialog
+mysql-server
+python-mysqldb
+puppet
+puppetmaster
+%post --interpreter=/bin/sh
+#Capture input from tty6, and send output to tty6
+chvt 6
+exec < /dev/tty6 > /dev/tty6
+ 
+clear
+	 
+/media/cdrom/puppet/master.sh
+	 
+#Capture input from tty1, and send output to tty1
+chvt 1
+exec < /dev/tty1 > /dev/tty1
+\end{lstlisting}
+
+Maak ook het bestand ksslave.cfg aan:
+
+\begin{lstlisting}[language=clean]
+#Generated by Kickstart Configurator
+#platform=x86
+#System language
+lang en_US
+#Language modules to install
+langsupport en_US
+#System keyboard
+keyboard be
+#System mouse
+mouse
+#System timezone
+timezone Europe/Brussels
+#Root password (= $$32Puppet)
+rootpw --iscrypted $1$HUUqY2cv$EDqnPg0QxtPBIM9d22ynC/
+#Initial user
+user --disabled
+#Reboot after installation
+reboot
+#Use text mode install
+text
+#Install OS instead of upgrade
+install
+#Use CDROM installation media
+cdrom
+#System bootloader configuration
+bootloader --location=mbr 
+#Clear the Master Boot Record
+zerombr yes
+#Partition clearing information
+clearpart --all --initlabel 
+#Disk partitioning information 
+part / --fstype ext3 --size 1 --grow 
+part swap --size 1024 
+#System authorization infomation
+auth  --useshadow  --enablemd5 
+#Network information
+network --bootproto=dhcp --device=eth0
+#Firewall configuration
+firewall --disabled 
+#Do not configure the X Window System
+skipx
+%packages
+dialog
+puppet
+%post --interpreter=/bin/sh
+#Capture input from tty6, and send output to tty6
+chvt 6
+exec < /dev/tty6 > /dev/tty6
+ 
+clear
+ 
+/media/cdrom/puppet/slave.sh
+ 
+#Capture input from tty1, and send output to tty1
+chvt 1
+exec < /dev/tty1 > /dev/tty1
+\end{lstlisting}
+
+Plaats deze bestanden (ksmaster.cfg en ksslave.cfg) onder de root map (/) m.b.v. ISO Master.
+
+Maak het bestand master.sh aan (dit is het bestand waarmee de configuratie wordt weggeschreven om een puppet master op te zetten).:
+
+\begin{lstlisting}[language=sh]
+#!/bin/sh
+##############################
+# Puppet master installation #
+##############################
+ 
+backtitle="Puppet master configuration"
+ 
+# Temporarily file to read answers from dialog 
+answer=`mktemp`
+ 
+dialog --sleep 1 --backtitle "$backtitle" --infobox "Starting Puppet configuration" 3 33
+ 
+# Puppet master network settings
+dialog --backtitle "$backtitle" --nocancel --inputbox "IP address of this Puppet master:" 8 37 2> $answer
+ipmaster=`cat ${answer}`
+dialog --backtitle "$backtitle" --nocancel --inputbox "Netmask of this Puppet master:" 8 34 "255.255.255.0" 2> $answer
+nmmaster=`cat ${answer}`
+dialog --backtitle "$backtitle" --nocancel --inputbox "Gateway of this Puppet master:" 8 34 2> $answer
+gwmaster=`cat ${answer}`
+echo -e "auto lo\niface lo inet loopback\n\nauto eth0\niface eth0 inet static\n\taddress ${ipmaster}\n\tnetmask ${nmmaster}\n\tgateway ${gwmaster}" > /etc/network/interfaces
+dialog --backtitle "$backtitle" --nocancel --inputbox "Nameserver(s) of this Puppet master (seperated by ,):" 8 60 2> $answer
+nameservers=`cat $answer | tr --delete ' ' | tr ',' "\n"`
+echo -n "" > /etc/resolv.conf
+for ns in $nameservers; do
+	echo "nameserver $ns" >> /etc/resolv.conf
+done
+dialog --backtitle "$backtitle" --nocancel --inputbox "FQDN of this Puppet master:" 8 40 2> $answer
+fqdnmaster=`cat ${answer}`
+hostname $fqdnmaster
+echo $fqdnmaster > /etc/hostname
+hostmaster=`echo ${fqdnmaster} | cut -d '.' -f 1`
+echo -e "\n127.0.0.1\t${fqdnmaster} ${hostmaster} puppet" >> /etc/hosts
+ 
+# Copy Puppet configuration
+dialog --sleep 1 --backtitle "$backtitle" --infobox "Copying Puppet configuration" 3 32
+cp -R /media/cdrom/puppet/manifests /etc/puppet/
+cp -R /media/cdrom/puppet/modules /etc/puppet/
+cp -R /media/cdrom/puppet/templates /etc/puppet/
+chmod 700 /etc/puppet
+chown puppet:puppet /etc/puppet
+ 
+# Set up Puppet configuration
+dialog --sleep 1 --backtitle "$backtitle" --infobox "Setting up Puppet configuration" 3 35
+nsline=""
+for ns in $nameservers; do
+	nsline="${nsline}\"${ns}\", "
+done
+nsline=`echo $nsline | sed 's/,$//'`
+cat /etc/puppet/manifests/templates.pp | sed "s/^.*\$nameservers = \[\]$/\t\$nameservers = [${nsline}]/" > /etc/puppet/manifests/templates.pp
+cat /etc/puppet/modules/bind/manifests/init.pp | sed "s/^.*\$forwarders = \[\]$/\t\$forwarders = [${nsline}]/" > /etc/puppet/modules/bind/manifests/init.pp
+ 
+# Set up MySQL
+dialog --sleep 1 --backtitle "$backtitle" --infobox "Setting up MySQL" 3 20
+/etc/init.d/mysql start
+dialog --backtitle "$backtitle" --nocancel --inputbox "Database name:" 8 37 "puppet" 2> $answer
+dbname=`cat ${answer}`
+/usr/bin/mysqladmin create $dbname
+/usr/bin/mysql $dbname < /media/cdrom/puppet/puppet.sql
+dialog --backtitle "$backtitle" --nocancel --inputbox "Database username:" 8 37 "puppet" 2> $answer
+dbuser=`cat ${answer}`
+dialog --backtitle "$backtitle" --nocancel --insecure --passwordbox "Database password:" 8 37 "puppet" 2> $answer
+dbpass=`cat ${answer}`
+echo "CREATE USER '${dbuser}'@'localhost' IDENTIFIED BY '${dbpass}';" | /usr/bin/mysql
+echo "GRANT SELECT, INSERT, UPDATE, DELETE ON ${dbname}.* TO '${dbuser}'@'localhost';" | /usr/bin/mysql
+/usr/bin/mysqladmin flush-privileges
+dialog --backtitle "$backtitle" --nocancel --insecure --passwordbox "MySQL root password:" 8 30 "\$\$32Puppet" 2> $answer
+mysqlpass=`cat ${answer}`
+/usr/bin/mysqladmin -u root password "$mysqlpass"
+ 
+# Copy scripts
+dialog --sleep 1 --backtitle "$backtitle" --infobox "Copying scripts" 3 19
+cp /media/cdrom/puppet/mysql-to-puppet.py /media/cdrom/puppet/mysql-to-nagios.py /media/cdrom/puppet/puppetman.py /usr/local/bin/
+chmod 700 /usr/local/bin/mysql-to-puppet.py /usr/local/bin/mysql-to-nagios.py /usr/local/bin/puppetman.py
+cat /usr/local/bin/mysql-to-puppet.py | sed "s/^mysql_database =.*$/mysql_database = '${dbname}'/" > /usr/local/bin/mysql-to-puppet.py
+cat /usr/local/bin/mysql-to-puppet.py | sed "s/^mysql_username =.*$/mysql_username = '${dbuser}'/" > /usr/local/bin/mysql-to-puppet.py
+cat /usr/local/bin/mysql-to-puppet.py | sed "s/^mysql_password =.*$/mysql_password = '${dbpass}'/" > /usr/local/bin/mysql-to-puppet.py
+cat /usr/local/bin/mysql-to-nagios.py | sed "s/^mysql_database =.*$/mysql_database = '${dbname}'/" > /usr/local/bin/mysql-to-nagios.py
+cat /usr/local/bin/mysql-to-nagios.py | sed "s/^mysql_username =.*$/mysql_username = '${dbuser}'/" > /usr/local/bin/mysql-to-nagios.py
+cat /usr/local/bin/mysql-to-nagios.py | sed "s/^mysql_password =.*$/mysql_password = '${dbpass}'/" > /usr/local/bin/mysql-to-nagios.py
+cat /usr/local/bin/puppetman.py | sed "s/^mysql_database =.*$/mysql_database = '${dbname}'/" > /usr/local/bin/puppetman.py
+cat /usr/local/bin/puppetman.py | sed "s/^mysql_username =.*$/mysql_username = '${dbuser}'/" > /usr/local/bin/puppetman.py
+cat /usr/local/bin/puppetman.py | sed "s/^mysql_password =.*$/mysql_password = '${dbpass}'/" > /usr/local/bin/puppetman.py
+ 
+dialog --backtitle "$backtitle" --nocancel --pause "Puppet master configuration completed" 8 41 5
+\end{lstlisting}
+
+En dan nog het bestand slave.sh (dit is het bestand waarmee de configuratie wordt weggeschreven om een puppet master op te zetten).:
+
+\begin{lstlisting}[language=sh]
+#!/bin/sh
+##############################
+# Puppet slave installation  #
+##############################
+ 
+backtitle="Puppet slave configuration"
+ 
+# Temporarily file to read answers from dialog 
+answer=`mktemp`
+ 
+dialog --sleep 1 --backtitle "$backtitle" --infobox "Starting Puppet configuration" 3 33
+ 
+# Puppet slave network settings
+dialog --backtitle "$backtitle" --nocancel --inputbox "IP address of this Puppet slave:" 8 36 2> $answer
+ipslave=`cat ${answer}`
+dialog --backtitle "$backtitle" --nocancel --inputbox "Netmask of this Puppet slave:" 8 33 "255.255.255.0" 2> $answer
+nmslave=`cat ${answer}`
+dialog --backtitle "$backtitle" --nocancel --inputbox "Gateway of this Puppet slave:" 8 33 2> $answer
+gwslave=`cat ${answer}`
+echo -e "auto lo\niface lo inet loopback\n\nauto eth0\niface eth0 inet static\n\taddress ${ipslave}\n\tnetmask ${nmslave}\n\tgateway ${gwslave}" > /etc/network/interfaces
+dialog --backtitle "$backtitle" --nocancel --inputbox "Nameserver(s) of this Puppet master (seperated by ,):" 8 60 2> $answer
+nameservers=`cat $answer | tr --delete ' ' | tr ',' "\n"`
+echo -n "" > /etc/resolv.conf
+for ns in $nameservers; do
+	echo "nameserver $ns" >> /etc/resolv.conf
+done
+dialog --backtitle "$backtitle" --nocancel --inputbox "FQDN of this Puppet slave:\nThis may NOT BE 'puppet.something'" 9 40 2> $answer
+fqdnslave=`cat ${answer}`
+hostname $fqdnslave
+echo $fqdnslave > /etc/hostname
+hostslave=`echo ${fqdnslave} | cut -d '.' -f 1`
+echo -e "\n127.0.0.1\t${fqdnslave} ${hostslave}" >> /etc/hosts
+ 
+# Puppet slave master information
+dialog --backtitle "$backtitle" --nocancel --inputbox "IP address of Puppet master:" 8 32 2> $answer
+ipmaster=`cat ${answer}`
+dialog --backtitle "$backtitle" --nocancel --inputbox "FQDN of Puppet master:" 8 30 2> $answer
+fqdnmaster=`cat ${answer}`
+hostmaster=`echo ${fqdnmaster} | cut -d '.' -f 1`
+echo -e "${ipmaster}\t${fqdnmaster} ${hostmaster} puppet" >> /etc/hosts
+echo -e "\n[puppetd]" >> /etc/puppet/puppet.conf
+echo "server=${fqdnmaster}" >> /etc/puppet/puppet.conf
+chmod 700 /etc/puppet
+ 
+# Wait for signed certificate
+dialog --sleep 1 --backtitle "$backtitle" --infobox "Starting Puppet daemon" 3 26
+puppetd &
+dialog --backtitle "$backtitle" --msgbox "       Press < OK > when the Puppet administrator signed the certificate." 6 41
+ 
+dialog --backtitle "$backtitle" --nocancel --pause "Puppet slave configuration complete" 8 40 5
+\end{lstlisting}
+
+Maak deze bestanden (master.sh en slave.sh) uitvoerbaar:
+\begin{lstlisting}[language=clean]
+# chmod 755 master.sh slave.sh
+\end{lstlisting}
+
+Maak een map puppet aan onder de root dir (/) m.b.v. ISO Master.
+
+Plaats de 2 scripts onder de juist aangemaakte puppet map m.b.v. ISO Master.
+
+Onder dezelfde map plaats je ook de 3 Python scripts (mysql-to-puppet.py, mysql-to-nagios.py en puppetman.py). Je vind ze op \href{https://wikis.khleuven.be/sysnw/index.php/Puppet\#Scripts}{Puppet\#Scripts}.
+
+Nog steeds onder dezelfde map plaats je ook de (blanco) Puppet configuratiebestanden. Je vindt ze op \href{https://wikis.khleuven.be/sysnw/index.php/Puppet\#Puppet\_configuratie\_.28.3D\_manifests.29\_toevoegen}{wiki}.
+
+Verder dien je ook nog een puppet.sql bestand te cre\"{e}ren voor het aanmaken van de databank in deze map puppet plaatsen mbv ISO master. De inhoud voor dit bestand is tevens terug te vinden op de \href{https://wikis.khleuven.be/sysnw/index.php/Puppet#MySQL_databank_aanmaken_op_master}{wiki}
+
+Optioneel kan je de splash image wijzigen. Download \href{https://wikis.khleuven.be/sysnw/images/3/39/PuppetSplash.pcx}{PuppetSplash.pcx}, en plaats het onder isolinux nadat je de naam wijzigde naar splash.pcx. 
+
+\begin{nota}
+Om een bestand te overschrijven met ISO Master, dien je het eerst te Removen, en dan te Adden.
+\end{nota}
+
+Save As ks.iso 
+
+\chapter*{Puppet} \addcontentsline{toc}{chapter}{Puppet}
+Bij aanvang van dit hoofdstuk zou je in het bezit moeten zijn van een werkende puppet iso image. Deze kan je bekomen door het vorige hoofdstuk te volgen. 
+
+Ofwel ben je in het bezit van een werkende kickstart puppet cdrom welke via de erkende kanalen te verkrijgen is.
+
+\section*{Kickstart installatie en configuratie} \addcontentsline{toc}{section}{Kickstart installatie en configuratie}
+Bij het gebruik van fysieke machines dien je te booten vanop cdrom. Bij gebruik van virtuele machines booten vanop de iso image als vanzelfsprekend.
+
+Vooraleer je een machine installeert dien je wel enkele parameters voor jezelf op te maken als zijnde
+\begin{itemize}
+\item IP adres van de machine (zowel voor slave als master)
+\item Netmasker
+\item Gateway
+\item Nameserver
+\item FQDN (master.domein.be)
+\item database naam, gebruikersnaam \& wachtwoord, root wachtwoord mysql
+\end{itemize}
+
+\begin{nota}
+Het is niet onverstandig deze gegevens op voorhand neer te pennen aangezien deze tijdens beide installaties van pas kunnen komen.
+\end{nota}
+\newpage
+\subsection*{Puppet master op Ubuntu} \addcontentsline{toc}{subsection}{Puppet master op Ubuntu}
+Boot met de Kickstart CD (ks.iso) en volg de instructies voor de master installatie. 
+
+\subsection*{Puppet slave op Ubuntu} \addcontentsline{toc}{subsection}{Puppet slave op Ubuntu}
+\begin{nota}
+Het is belangrijk dat u de puppet master reeds ge\"{i}nstalleerd hebt en op hebt staan alvorens de slave te installeren.
+\end{nota}
+
+Boot met de Kickstart CD (ks.iso) en volg de instructies voor de slave installatie. 
+
+De eerste keer dat een Puppet slave node connecteert naar de Puppet master stopt de installatie even, de nieuwe node is nog niet gekend. 
+
+Er dient nog een certificaat te worden getekend. Om een lijst van nog te tekenen nodes te krijgen gebruik je puppetca op de puppetmaster:
+\begin{lstlisting}[language=clean]
+# puppetca --list
+\end{lstlisting}
+
+Voorbeeld output:
+\begin{lstlisting}[language=clean]
+web.puppets.be
+\end{lstlisting}
+
+Om deze dan te ondertekenen gebruik je ook puppetca:
+\begin{lstlisting}[language=clean]
+# puppetca --sign web.puppets.be
+\end{lstlisting}
+
+Voorbeeld output:
+\begin{lstlisting}[language=clean]
+Signed web.puppets.be
+\end{lstlisting}
+
+Wanneer dit niet onmiddellijk is gelukt kan u gerust verder gaan met de installatie en deze authenticatie achteraf uitvoeren op volgende manier.
+
+Puppet slave:
+\begin{lstlisting}[language=clean]
+# puppetd -- server puppetmaster.domein.be --verbose --waitforcert 60
+\end{lstlisting}
+
+Puppet master:
+\begin{lstlisting}[language=clean]
+# puppetca --list
+# puppetca --sign web.puppets.be
+\end{lstlisting}
+
+Wanneer je bevestiging krijgt dat het certificaat werd ondertekent is de authenticatie geslaagd en kan je verder gaan met de howto.
+\newpage
+\section*{Handmatige installatie en configuratie} \addcontentsline{toc}{section}{Handmatige installatie en configuratie}
+\begin{nota}
+Wanneer je gebruik maakt van de kickstart cdrom mag je dit deel overslaan aangezien dit mbv de installatie cdrom reeds uitgevoerd werd.
+\end{nota}
+
+Met behulp van de kickstart cdrom kan je kiezen om van een server een puppet master machine of puppet slave machine te maken binnen de opstelling. Vervolgens worden de nodige stappen genomen om van deze machine het juiste puppet systeem te maken. 
+
+Wij opteerden voor het gebruik van kickstart om op een zo efficient mogelijke manier een server zo snel en performant mogelijk operationeel te krijgen. 
+
+In volgend deel wordt uitgelegd hoe u handmatig vertrekkende vanuit een standaard linux distrubutie van een server een puppet master of slave maakt.
+
+\subsection*{Puppet master op FreeBSD} \addcontentsline{toc}{subsection}{Puppet master op FreeBSD}
+\begin{nota}
+Draait op FreeBSD 7.2-RELEASE, de volledige installatie en configuratie van FreeBSD is out-of-the-scope van deze howto.
+\end{nota}
+
+We hebben er voor gekozen om de configuratie van de master zelf niet via Puppet te doen. Zou er iets fouts met Puppet gebeuren, dan hebben we een grotere kans dat we het via de master kunnen herstellen.
+
+Puppet master:
+\begin{lstlisting}[language=clean]
+# cd /usr/ports/sysutils/puppet
+# make install clean
+\end{lstlisting}
+
+MySQL installatie:
+\begin{lstlisting}[language=clean]
+# cd /usr/ports/databases/mysql51-server
+# make install clean
+\end{lstlisting}
+
+In /etc/rc.conf:
+\begin{lstlisting}[language=clean]
+puppetmasterd_enable="YES"
+mysql_enable="YES"
+\end{lstlisting}
+
+\subsubsection*{Nagios op FreeBSD} \addcontentsline{toc}{subsubsection}{Nagios op FreeBSD}
+Binnen onze opstelling hebben wij er ook voor gezorgd dat het mogelijk is op een zeer gebruiksvriendelijke manier een nagios monitoring server op te nemen. 
+
+Hoe je dergelijke installatie manueel kan uitvoeren op een FreeBSD systeem vind je hier terug.
+
+\begin{nota}
+Dit is niet verplicht voor een Puppet master, je kan van een Puppet slave (node) een Nagios server maken.
+\end{nota}
+
+Apache installatie:
+\begin{lstlisting}[language=clean]
+# cd /usr/ports/www/apache22
+# make install clean
+\end{lstlisting}
+
+Nagios installatie:
+\begin{lstlisting}[language=clean]
+# cd /usr/ports/net-mgmt/nagios
+# make install clean
+\end{lstlisting}
+
+In /etc/rc.conf:
+\begin{lstlisting}[language=clean]
+apache22_enable="YES"
+nagios_enable="YES"
+\end{lstlisting}
+
+Aanmaken van /usr/local/etc/apache22/Includes/nagios.conf:
+\begin{lstlisting}[language=clean]
+<Directory /usr/local/www/nagios>
+  Order deny,allow
+  Allow from all
+
+  AuthName "Nagios Access"
+  AuthType Basic
+  AuthUserFile /usr/local/etc/nagios/htpasswd.users
+  require valid-user
+</Directory>
+
+<Directory /usr/local/www/nagios/cgi-bin>
+  Options ExecCGI
+</Directory>
+
+ScriptAlias /nagios/cgi-bin/ /usr/local/www/nagios/cgi-bin/
+Alias /nagios/ /usr/local/www/nagios/
+\end{lstlisting}
+
+Aanmaken Apache login bestand voor de Nagios administrator:
+\begin{lstlisting}[language=clean]
+# htpasswd -c /usr/local/etc/nagios/htpasswd.users nagiosadmin
+\end{lstlisting}
+
+Kopie maken van default configs:
+\begin{lstlisting}[language=clean]
+# cd /usr/local/etc/nagios
+# cp cgi.cfg-sample cgi.cfg
+# cp nagios.cfg-sample nagios.cfg
+# cp resource.cfg-sample resource.cfg
+# cd objects
+# cp commands.cfg-sample commands.cfg
+# cp contacts.cfg-sample contacts.cfg
+# cp localhost.cfg-sample localhost.cfg
+# cp templates.cfg-sample templates.cfg
+# cp timeperiods.cfg-sample timeperiods.cfg
+\end{lstlisting}
+
+Start services:
+\begin{lstlisting}[language=clean]
+# /usr/local/etc/rc.d/apache22 start
+# /usr/local/etc/rc.d/nagios start
+\end{lstlisting}
+
+U kan nu surfen naar \url{http://hostname/nagios/} \small{(vergeet de '/' op het einde niet!!)}
+
+\subsection*{Puppet master op Ubuntu} \addcontentsline{toc}{subsection}{Puppet master op Ubuntu}
+\begin{nota}
+Draait op Ubuntu Server 8.04.2 LTS, de volledige installatie en configuratie van Ubuntu is out-of-the-scope van deze howto.
+\end{nota}
+
+We hebben er voor gekozen om de configuratie van de master zelf niet via Puppet te doen. Zou er iets fouts met Puppet gebeuren, dan hebben we een grotere kans dat we het via de master kunnen herstellen.
+
+OpenSSH:
+\begin{lstlisting}[language=clean]
+# sudo apt-get install openssh-server
+\end{lstlisting}
+
+Puppet master:
+\begin{lstlisting}[language=clean]
+# sudo apt-get install puppet
+\end{lstlisting}
+
+MySQL installatie:
+\begin{lstlisting}[language=clean]
+# sudo apt-get install mysql-server
+\end{lstlisting}
+
+\subsubsection*{Nagios op Ubuntu} \addcontentsline{toc}{subsubsection}{Nagios op Ubuntu}
+Binnen onze opstelling hebben wij er ook voor gezorgd dat het mogelijk is op een zeer gebruiksvriendelijke manier een nagios monitoring server op te nemen. Hoe je dergelijke installatie manueel kan uitvoeren op een Ubuntu systeem vind je hier terug.
+
+Apache installatie:
+\begin{lstlisting}[language=clean]
+# sudo apt-get install apache2
+\end{lstlisting}
+
+Nagios installatie:
+\begin{lstlisting}[language=clean]
+# sudo apt-get install nagios2 nagios-plugins nagios-images
+\end{lstlisting}
+
+Aanmaken Apache login bestand voor de Nagios administrator:
+\begin{lstlisting}[language=clean]
+# cd /etc/nagios2
+# sudo htpasswd -c htpasswd.users nagiosadmin
+\end{lstlisting}
+
+U kan nu surfen naar \url{http://hostname/nagios2}
+\newpage
+\subsection*{Puppet configuratie} \addcontentsline{toc}{subsection}{Puppet configuratie}
+Puppet maakt gebruik van manifests voor de configuratie van de verschillende slave systemen. Wij genereerden enkele van deze manifests volgens onze opstelling. Om hiervan gebruik te maken gaat u als volgt te werk:
+
+Onder FreeBSD:
+\begin{lstlisting}[language=clean]
+# mkdir -p /usr/local/etc/puppet/manifests
+# mkdir /usr/local/etc/puppet/templates
+# mkdir /usr/local/etc/puppet/modules
+\end{lstlisting}
+
+Onder Ubuntu:
+\begin{lstlisting}[language=clean]
+# mkdir -p /etc/puppet/manifests
+# mkdir /etc/puppet/templates
+# mkdir /etc/puppet/modules
+\end{lstlisting}
+
+Download de bestanden hier: \href{https://wikis.khleuven.be/sysnw/index.php/Image:PuppetConfig.tar.gz}{PuppetConfig.tar.gz }
+
+\subsubsection*{Manifests} \addcontentsline{toc}{subsubsection}{Manifests}
+hebben altijd de .pp extensie. Het eerste bestand dat wordt ingelezen is site.pp. Dit bestand laadt alle andere in. In het mysql\_nodes.pp bestand komen de gegenereerde nodes uit de (MySQL) databank, je moet dus dat bestand niet manueel aanpassen! Custom nodes kun je in het nodes.pp bestand zetten.
+
+\begin{nota}
+Hier komen eerder globale bestanden van het besturingssysteem.
+\end{nota}
+
+Aan te passen:
+\begin{itemize}
+\item manifests/templates.pp: nameserver(s) aanpassen - vb: \$nameservers = ["192.168.1.1", "192.168.1.2"]
+\item modules/bind/manifests/init.pp: nameserver(s) aanpassen - vb: \$forwarders = ["192.168.1.1"]
+\item users/virt\_users.pp + groups/itteam.pp: gebruiker(s) aanpassen 
+\end{itemize}
+
+De standaard wachtwoorden zijn \$\$32Puppet.
+
+\subsubsection*{Templates} \addcontentsline{toc}{subsubsection}{Templates}
+Templates zijn dynamische configuratiebestanden (= gegenereerd door Puppet configuraties). Ze hebben altijd de .erb extensie.
+
+\begin{nota}
+Hier komen eerder globale bestanden van het besturingssysteem.
+\end{nota}
+
+\subsubsection*{Modules} \addcontentsline{toc}{subsubsection}{Modules}
+Modules zijn manifests die samenhoren (vb. Apache module, Bind module, ...). Elke module beschikt over een EIGEN files, manifests, en templates map. 
+
+De files map is handig om statische configuraties door te sturen, de manifests voor Puppet configuraties, en de templates om dynamische configuraties (= gegenereerd door Puppet configuraties) door te sturen. 
+
+\subsection*{MySQL databank aanmaken op master} \addcontentsline{toc}{subsection}{MySQL databank aanmaken op master}
+\begin{nota}
+Wanneer je gebruik maakt van de kickstart cdrom mag je dit deel overslaan aangezien dit mbv de installatie cdrom reeds uitgevoerd werd.
+\end{nota}
+
+Om alle gegevens van de verschillende nodes binnen het netwerk op een centrale plaats te bewaren, maken we gebruik van een MySQL databank. Deze kan m.b.v. scripts worden aangesproken om de data uit te lezen, aan te passen, of te creëren.
+
+De volgende SQL code kan je inladen met behulp van het '''mysql''' commando, of met een webtool zoals '''phpMyAdmin'''.
+
+\begin{lstlisting}[language=clean]
+# mysqladmin -p create puppet
+# mysql -p puppet < puppet.sql
+\end{lstlisting}
+
+Vergeet ook geen MySQL gebruiker aan te maken:
+ 
+\begin{lstlisting}[language=clean]
+# mysql -p
+	mysql> CREATE USER 'puppet'@'localhost' IDENTIFIED BY 'puppet';
+	mysql> GRANT SELECT,INSERT,UPDATE ON puppet.* TO 'puppet'@'localhost' WITH GRANT OPTION;
+	mysql> quit
+# mysqladmin -p flush-privileges
+\end{lstlisting}
+
+
+\begin{nota}
+Indien je een andere databank, gebruikersnaam of wachtwoord zou willen gebruiken, vergeet deze dan ook niet aan te passen in de scripts!
+\end{nota}
+ 
+\begin{lstlisting}[language=SQL]
+CREATE TABLE IF NOT EXISTS `apache_virtualhosts` (
+  `apache_vhid` int(11) NOT NULL AUTO_INCREMENT,
+  `nodeid` int(11) NOT NULL,
+  `status` tinyint(1) NOT NULL,
+  `hostname` varchar(80) NOT NULL,
+  PRIMARY KEY (`apache_vhid`),
+  UNIQUE KEY `nodeid` (`nodeid`,`hostname`)
+);
+ 
+CREATE TABLE IF NOT EXISTS `bind_domains` (
+  `bind_domid` int(11) NOT NULL AUTO_INCREMENT,
+  `nodeid` int(11) NOT NULL,
+  `status` tinyint(1) NOT NULL,
+  `domain` varchar(80) NOT NULL,
+  PRIMARY KEY (`bind_domid`),
+  UNIQUE KEY `nodeid` (`nodeid`,`domain`)
+);
+ 
+CREATE TABLE IF NOT EXISTS `bind_subdomains` (
+  `bind_subdomid` int(11) NOT NULL AUTO_INCREMENT,
+  `bind_domid` int(11) NOT NULL,
+  `nodeid` int(11) NOT NULL,
+  `status` tinyint(1) NOT NULL,
+  `hostname` varchar(80) NOT NULL,
+  `ip` varchar(15) NOT NULL,
+  PRIMARY KEY (`bind_subdomid`)
+  UNIQUE KEY `bind_domid` (`bind_domid`,`nodeid`,`hostname`)
+);
+ 
+CREATE TABLE IF NOT EXISTS `nodes` (
+  `nodeid` int(11) NOT NULL AUTO_INCREMENT,
+  `hostname` varchar(80) NOT NULL,
+  `ip` varchar(15) NOT NULL,
+  `netmask` varchar(15) NOT NULL,
+  `gateway` varchar(15) NOT NULL,
+  `module_apache` tinyint(1) DEFAULT '0',
+  `module_nagios` tinyint(1) DEFAULT '0',
+  `module_php` tinyint(1) DEFAULT '0',
+  `module_mysql` tinyint(1) DEFAULT '0',
+  `module_bind` tinyint(1) DEFAULT '0',
+  PRIMARY KEY (`nodeid`),
+  UNIQUE KEY `hostname` (`hostname`)
+);
+\end{lstlisting}
+
+\subsubsection*{Scripts} \addcontentsline{toc}{subsubsection}{Scripts}
+\begin{nota}
+Wanneer je gebruik maakt van de kickstart cdrom mag je dit deel overslaan aangezien dit mbv de installatie cdrom reeds uitgevoerd werd.
+\end{nota}
+
+Om de scripts uit te voeren zonder het volledige path te moeten opgeven kun je ze onder de map '''/usr/local/bin''' zetten. Je zou ook de \$PATH (shell) variable kunnen aanpassen.
+
+{\bf MySQL to Puppet}
+
+Dit script kan mogelijk in cron worden gezet. Aangezien het wordt uitgevoerd na het management script, is het '''niet noodzakelijk'''.
+\begin{lstlisting}[language=clean]
+# crontab -e
+
+# Om de 15 minuten
+*/15	*	*	*	*	/usr/local/bin/mysql\_to\_puppet.py
+\end{lstlisting}
+
+Download: \href{https://wikis.khleuven.be/sysnw/index.php/PuppetMySQLToPuppet}{PuppetMySQLToPuppet}
+
+{\bf MySQL to Nagios}
+
+Dit script kan mogelijk in cron worden gezet. Aangezien het wordt uitgevoerd na het management script, is het '''niet noodzakelijk'''.
+
+\begin{lstlisting}[language=clean]
+# crontab -e
+
+# Om de 15 minuten
+%*/15	*	*	*	*	/usr/local/bin/mysql\_to\_nagios.py
+\end{lstlisting}
+
+
+Download: \href{https://wikis.khleuven.be/sysnw/index.php/PuppetMySQLToNagios}{PuppetMySQLToNagios}
+
+{\bf Management script}
+
+Met behulp van dit script kunnen er verschillende nodes worden gecre\"{e}erd, aangepast en verwijderd. Je kan nodes functies (vb. webserver) toekennen en afnemen.
+
+Download: \href{https://wikis.khleuven.be/sysnw/index.php/PuppetManagement}{PuppetManagement}
+\newpage
+
+\section*{Beheer} \addcontentsline{toc}{section}{Beheer}
+Voor je begint met het volgen van dit deel dient je opstelling reeds volledig te zijn opgezet, zijnde de puppet master, de puppet slave, de databank en de 2 scriptjes mysql to nagios - puppet. Het beheerscript maakt gebruik van deze opstelling.
+
+Ook het aanpassen van de credentials van de sql connectie in het script is aangewezen om niet voor onaangename verrassingen komen te staan.
+
+\subsection*{Het aanmaken van een nieuwe node} \addcontentsline{toc}{subsection}{Het aanmaken van een nieuwe node}
+\begin{nota}
+Wanneer je gebruik maakt van de kickstart cdrom mag je dit deel overslaan aangezien dit mbv de installatie cdrom reeds uitgevoerd werd.
+\end{nota}
+
+Wanneer er een nieuwe node in het systeem dient te worden opgenomen, maak je gebruik van de parameter -C (--create). Deze paramater vereist dat je de node parameter ook meegeeft met -n (--node), evenals het IP adres van de nieuwe node, de netmask, en het IP adres van de Puppet master. 
+\begin{lstlisting}[language=clean]
+# puppetman.py -C -n <FQDN> -I <IP> -N <netmask> -G <gateway>
+\end{lstlisting}
+
+Als dit succesvol werd uitgevoerd werd deze nieuwe node aan de centrale databank toegevoegd.
+
+
+\subsection*{Activeren/deactiveren/resetten van modules} \addcontentsline{toc}{subsection}{Activeren/deactiveren/resetten van modules}
+Standaard wordt een node aangemaakt zonder de activatie van een module. De modules zijn: apache, nagios, php, mysql, en bind. Er kunnen andere modules worden toegevoegd, maar dan moeten de scripts en de databank worden aangepast.
+
+Elke module kan in 3 toestanden worden geplaatst: enabled (1), disabled (-1) of cleared (0).
+
+\begin{nota}
+Je kan ook "*" gebruiken om een status te wijzigen van alle modules. Vergeet zeker niet de aanhalingstekens mee te geven!
+\end{nota} 
+
+\subsubsection*{Enabled (0)} \addcontentsline{toc}{subsubsection}{Enabled (0)}
+Wanneer een module op enabled wordt ingesteld, dan wordt deze service actief (geïnstalleerd + gecontroleerd op actief) op de betreffende node. 
+\begin{lstlisting}[language=clean]
+# puppetman.py -n <FQDN> -e <*|apache|nagios|php|mysql|bind>
+\end{lstlisting}
+
+\subsubsection*{Disabled (-1)} \addcontentsline{toc}{subsubsection}{Disabled (-1)}
+Wanneer een module op disabled wordt ingesteld, dan wordt deze service inactief (niet geïnstalleerd + gecontroleerd op inactief) op de betreffende node. De configuratie wordt ook verwijderd.
+
+Bij de Apache module blijven websites (onder /var/www) behouden na het disablen.
+
+\begin{lstlisting}[language=clean]
+# puppetman.py -n <FQDN> -d <*|apache|nagios|php|mysql|bind>
+\end{lstlisting}
+
+\subsubsection*{Cleared (0)} \addcontentsline{toc}{subsubsection}{Cleared (0)}
+Wanneer een module op cleared wordt ingesteld, dan wordt deze service genegeerd. Dit wil zeggen:
+\begin{itemize}
+\item Indien hij enabled was, blijft hij actief maar wordt er niet meer op gecontroleerd.
+\item Indien hij disabled was, blijft hij inactief maar wordt er niet meer op gecontroleerd. 
+\end{itemize}
+
+De reden voor deze status is: indien je een module eerst hebt enabled, maar daarna wil je ze toch disablen, dan kun je ze even disablen. Tot de Puppet slave node connecteert en de module (service) verwijderd. Hierna moet hij niet elke keer controleren of de service nog steeds disabled is, maar kun je ze op de cleared status zetten. Elke module staat standaard op de cleared status. 
+
+\begin{lstlisting}[language=clean]
+# .puppetman.py -n <FQDN> -c <*|apache|nagios|php|mysql|bind>
+\end{lstlisting}
+
+\subsection*{Modules} \addcontentsline{toc}{subsection}{Modules}
+\subsubsection*{Apache} \addcontentsline{toc}{subsection}{Apache}
+Wanneer voor een node de module apache werd geactiveerd, kan je voor deze node makkelijk Virtuele Hosts beheren. Je kan er aanmaken (addvh), verwijderen (deletevh), enablen (enablevh) en disablen (disablevh).
+
+Enkele voorbeelden: 
+
+\begin{lstlisting}[language=clean]
+# puppetman.py -n web.puppets.be -M apache addvh www.puppets.be
+# puppetman.py -n web.puppets.be -M apache disablevh www.puppets.be
+# puppetman.py -n web.puppets.be -M apache enablevh www.puppets.be
+# puppetman.py -n web.puppets.be -M apache deletevh www.puppets.be
+\end{lstlisting}
+
+\subsubsection*{Bind} \addcontentsline{toc}{subsection}{Bind}
+Wanneer voor een node de module bind werd geactiveerd, kan je voor deze node makkelijk (sub)domeinen beheren. Je kan er aanmaken (adddomain of addsubdomain), verwijderen (deletedomain of deletesubdomain), enablen (enabledomain of enablesubdomain) en disablen (disabledomain of disablesubdomain). 
+
+Enkele voorbeelden: 
+
+\begin{lstlisting}[language=clean]
+# puppetman.py -n web.puppets.be -M bind adddommain puppets.be
+# puppetman.py -n web.puppets.be -M bind addsubdomain puppets.be www 192.168.1.35
+# puppetman.py -n web.puppets.be -M bind disablesubdomain puppets.be www
+# puppetman.py -n web.puppets.be -M bind addsubdomain puppets.be foo 192.168.1.36
+# puppetman.py -n web.puppets.be -M bind deletedomain puppets.be
+\end{lstlisting}
+
+\subsection*{Samenvatting} \addcontentsline{toc}{subsection}{Samenvatting}
+Een samenvatting van de verschillende nodes in de databank krijg je als je geen opties meegeeft: 
+
+\begin{lstlisting}[language=clean]
+# puppetman.py
+\end{lstlisting}
+
+Om meer gedetaileerde informatie van een node te zien geef je de FQDN van de node mee: 
+
+\begin{lstlisting}[language=clean]
+# puppetman.py -n web.puppets.be
+\end{lstlisting}
+
+\subsection*{Verwijderen van een node} \addcontentsline{toc}{subsection}{Verwijderen van een node}
+Met deze optie wordt een node volledig met al zijn Virtuele Hosts, domeinen en subdomeinen uit de databank verwijderd. 
+
+\begin{lstlisting}[language=clean]
+# puppetman.py -D <FQDN>
+\end{lstlisting}
+
+\chapter*{Bronnen} \addcontentsline{toc}{chapter}{Bronnen}
+\begin{itemize}
+\item http://reductivelabs.com/trac/puppet
+\item http://www.apress.com/book/view/1590599780
+\item http://docs.python.org/genindex-all.html
+\item http://nagios.sourceforge.net/docs/2\_0/
+\item http://en.wikipedia.org/wiki/Kickstart\_(Linux)
+\end{itemize}
+\end{document}

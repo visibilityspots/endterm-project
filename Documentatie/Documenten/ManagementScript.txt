@@ -1,0 +1,98 @@
+HOWTO
+-----
+
+parser.add_option("-n", "--node",dest="node",help="Hostname of the node")
+parser.add_option("-e", "--enable-module",dest="enable",help="Enable a module (name of the module)")
+parser.add_option("-d", "--disable-module",dest="disable",help="Disable a module (name of the module)")
+parser.add_option("-r", "--reset-module",dest="reset",help="Reset a module (name of the module)")
+parser.add_option("-c", "--clear-modules",dest="clear",help="Clear all modules from a node (-c all)")
+parser.add_option("-C", "--create",dest="create",help="Create new node")
+parser.add_option("-D", "--delete",dest="delete",help="Delete a node")
+parser.add_option("-a", "--apache-virtual-host",dest="virtualhost",help="Edit virtual hosts (add/disable/delete/enable)")
+parser.add_option("-b", "--domain",dest="domain",help="Edit domains (add/disable/delete/enable)")
+parser.add_option("-s", "--subdomain",dest="subdomain",help="Edit subdomains (add/delete)")
+parser.add_option("-S", "--sum",dest="summary",help="Give a summary of the existing nodes (-S all)")
+
+Voor je begint met het volgen van deze howto dien je deel I & II van de puppet howto's reeds te hebben uitgevoerd aangezien zonder eerst die stappen te vervolmaken het gebruik van dit management script totaal nutteloos is.
+-------------------------------------------------------------------------------------------------
+
+Het aanmaken van een nieuwe node
+
+Wanneer er een nieuwe node in het systeem dient te worden opgenomen dien je gebruik te maken van de parameter -C/--create. Deze paramater vereist dat je de node parameter ook meegeeft (-n/--node) evenals het ip adres van de nieuwe node, het netmasker en het ip adres van de puppetmaster.
+
+	# ./puppetadmin.py -n hostname -C 0.0.0.0 0.0.0.0 0.0.0.0
+
+Als dit succesvol werd uitgevoerd werd deze nieuwe node aan de centrale databank toegevoegd.
+
+-------------------------------------------------------------------------------------------------
+
+Het activeren/deactiveren/resetten van de modules
+
+Standaard in dit systeem wordt een node aangemaakt zonder de activatie van enige module. Deze modules zijn: apache, nagios, php, mysql & bind. Er kunnen andere modules worden toegevoegd, maar dan dient dit script en de databank te worden aangepast naar de nieuwe noden.
+
+Iedere module kan in 3 toestanden worden geplaatst: enabled, disabled of resetted. 
+
+Enable
+wanneer een module op enable wordt ingesteld wordt deze service actief op de desbetreffende node
+
+	# ./puppetadmin.py -n hostname -e moduleName
+
+Disabled
+wanneer een module op disabled wordt ingesteld wordt deze service inactief op de desbetreffende node maar wordt de configuratie nog wel behouden, de service wordt enkel stopgezet.
+
+	# ./puppetadmin.py -n hostname -d moduleName
+
+Resetted
+wanneer een module op reset wordt ingesteld wordt deze service volledig verwijderd van de desbetreffende node
+
+	# ./puppetadmin.py -n hostname -r moduleName
+
+----------------------------------------------------------------------------------------------------
+
+Clearen van de modules van een node
+
+met deze optie worden alle modules van een node die op status disabled staan verheven naar status reset zodanig de node in kwestie opnieuw met een propere lei beginnen kan
+
+	# ./puppetadmin.py -n hostname -c all
+	
+----------------------------------------------------------------------------------------------------
+Virtuele hosts
+
+Wanneer voor een node de module apache werd geactiveerd kan je voor deze node makkelijk virtuele hosts activeren mbv dit script. Je kan dit aanmaken (add) verwijderen (delete) desactiveren (disable) of activeren (enable). Je dient hiervoor gebruik te maken van volgend commando
+
+	# ./puppetadmin.py -n hostname -a (enable/disable/reset/delete)
+	
+----------------------------------------------------------------------------------------------------
+Domeinen
+
+Wanneer voor een node de module bind werd geactiveerd kan je voor deze node makkelijk een domein toevoegen en bewerken mvb dit script op volgende manier
+
+	# ./puppetadmin.py -n hostname -b (enable/disable/reset/delete)
+
+----------------------------------------------------------------------------------------------------
+Subdomeinen
+
+mvb dit script kan je ook subdomeinen aanmaken en verwijderen. Je dient hiervoor het ipadres en de hostname van het subdomein mee te geven
+
+	# ./puppetadmin.py -n hostname -s (add/delete) ip adres subHostname
+
+----------------------------------------------------------------------------------------------------
+Summary
+
+Een samenvatting van de verschillende hostnames van de nodes in de databank krijg je met dit commando
+
+	# ./puppetadmin.py -S all
+----------------------------------------------------------------------------------------------------
+Status
+
+Wanneer je enkel de hostname optie meegeeft met het script krijg je van de node in kwestie een kort overzicht
+
+	# ./puppetadmin.py -n hostname
+
+----------------------------------------------------------------------------------------------------
+Het verwijderen van een node
+
+met deze optie wordt een node volledig met al zijn aanpassingen, virtuele hosts, domeinen en subdomeinen uit het systeem verwijdert! Let dus op met deze optie!
+
+	# ./puppetadmin.py -D hostname
+	

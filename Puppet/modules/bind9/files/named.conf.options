@@ -1,0 +1,29 @@
+//
+// Do any local configuration here
+//
+
+// Consider adding the 1918 zones here, if they are not used in your
+// organization
+//include "/etc/bind/zones.rfc1918";
+
+zone "puppets.be" {
+	type master;
+	file "/etc/bind/db.puppets.be";
+	allow-transfer { 192.168.255.87; };
+};
+
+zone "255.168.192.in-addr.arpa" {
+	type master;
+	notify no;
+	file "/etc/bind/db.192";
+	allow-transfer { 192.168.255.87; };
+};
+
+logging {
+	channel query.log {
+		file "/var/log/query.log";
+		severity debug 3;
+	};
+	category queries { query.log; };
+};
+

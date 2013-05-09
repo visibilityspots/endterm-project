@@ -1,0 +1,5 @@
+<% domains.each do |domain| %>zone "<%= domain %>" {
+	type master;
+	file "/etc/bind/db.<%= domain %>";
+};
+<% end %>

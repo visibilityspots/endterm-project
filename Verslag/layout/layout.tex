@@ -1,0 +1,57 @@
+% Niet inspringen voor paragraaf, maar plaats laten
+% tussen paragrafen
+\setlength{\parindent}{0in}
+\setlength{\parskip}{1ex plus 0.5ex minus 0.2ex}
+
+% Footer (\usepackage{fancyhdr}
+\pagestyle{fancyplain}
+\fancyhead{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt} 
+\lfoot{Juni 2009}
+\cfoot{Projectwerk - Puppet}
+\rfoot{\thepage}
+
+% Inhoudsopgave
+\makeatletter
+\def\tableofcontents{%
+\newpage
+\leftline{\bf INHOUDSOPGAVE}
+\vspace*{1pt}
+\@mkboth{CONTENTS}{CONTENTS}
+\@starttoc{toc}
+}
+\makeatother
+
+\setlength{\parskip}{0.15in}
+\setlength{\parindent}{0in}
+
+% SubSubSection
+\newcounter{subcount}
+\newenvironment{subsubsubsection}
+{\begin{list}
+{\textbf{\thesubsubsection.\arabic{subcount}}}
+{\setlength{\itemindent}{2.2em}
+\setlength{\rightmargin}{.6in}
+\setlength{\labelwidth}{1in}
+\setlength{\labelsep}{.2in}
+\setlength{\parsep}{.5ex plus .2ex minus .1ex}
+\setlength{\itemsep}{0ex plus .2ex minus 0ex}
+\usecounter{subcount}}
+}
+
+
+% Code
+\lstset{ %
+basicstyle=\footnotesize,       % the size of the fonts that are used for the code
+numbersep=5pt,                  % how far the line-numbers are from the code
+backgroundcolor=\color{Periwinkle},   % choose the background color. You must add \usepackage{color}
+captionpos=b,                   % sets the caption-position to bottom
+breaklines=true,                % sets automatic line breaking
+breakatwhitespace=false,        % sets if automatic breaks should only happen at whitespace
+escapeinside={\%*}{*)}          % if you want to add a comment within your code
+}
+
+\setlength{\cftbeforechapskip}{2ex}
+\setlength{\cftbeforesecskip}{0.5ex}
